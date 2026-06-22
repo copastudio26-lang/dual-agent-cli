@@ -1,5 +1,3 @@
-import sys
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import streamlit as st
 import time
 import os
@@ -8,30 +6,28 @@ from dual_agent_core import developer_generate_script, auditor_check_script, saf
 st.set_page_config(page_title="Dual-Agent Control Panel", layout="wide")
 st.title("OMPT-Driven Dual-Agent Execution Control")
 
-# 1. Initialize session state at the very beginning
-if "code_input" not in st.session_state:
-    st.session_state["code_input"] = demo_sample_script()
+# 1. Initialize session state value for code if not present
+if "code_content" not in st.session_state:
+    st.session_state["code_content"] = demo_sample_script()
 
 col1, col2 = st.columns([1, 1])
 
 with col1:
     st.header("Developer: Script Editor / Prompts")
     
-    # Buttons placed before the text area to handle logic safely
     row1a, row1b = st.columns(2)
     with row1a:
         if st.button("Generate Safe Sample Script"):
-            st.session_state["code_input"] = demo_sample_script()
-            st.rerun()  # Updated to modern rerun function
+            st.session_state["code_content"] = demo_sample_script()
+            st.rerun()
             
     with row1b:
         if st.button("Introduce Syntax Error (for testing)"):
-            broken = st.session_state["code_input"] + "\n\nthis is a syntax error"
-            st.session_state["code_input"] = broken
-            st.rerun()  # Updated to modern rerun function
+            st.session_state["code_content"] = st.session_state["code_content"] + "\n\nthis is a syntax error"
+            st.rerun()
 
-    # 2. Text area now reads directly from initialized session state key
-    code_input = st.text_area("Enter Python script (raw):", key="code_input", height=320)
+    # 2. Key tracks state cleanly without passing dual arguments
+    code_input = st.text_area("Enter Python script (raw):", key="code_content", height=320)
     
     script_name = st.text_input("Script filename:", value="workspace_agent.py")
     st.markdown("Run settings")
@@ -43,14 +39,12 @@ with col1:
         audit = auditor_check_script(code_input)
         st.session_state["last_audit"] = audit
         
-        # show auditor result immediately
         if audit["status"] != "APPROVED":
             st.error(f"Auditor verdict: {audit['status']}")
             for r in audit.get("reasons", []):
                 st.write("- " + r)
         else:
             st.success("Auditor verdict: APPROVED")
-            # Execute
             with st.spinner("Executing with self-healing loop..."):
                 result = safe_execute_script_from_code(
                     code_str=code_input,
@@ -85,7 +79,7 @@ with col2:
             st.write("Final status:", exec_result.get("final_status"))
             st.markdown("### Attempts")
             for att in exec_result.get("attempts", []):
-                st.markdown(f"**Attempt {att['attempt']}**   returncode: {att['returncode']}, timed_out: {att['timed_out']}")
+                st.markdown(f"**Attempt {att['attempt']}** — returncode: {att['returncode']}, timed_out: {att['timed_out']}")
                 with st.expander(f"Stdout (Attempt {att['attempt']})"):
                     st.code(att.get("stdout", "") or "<empty>")
                 with st.expander(f"Stderr (Attempt {att['attempt']})"):
@@ -94,8 +88,7 @@ with col2:
         st.info("No execution attempts yet. Use the left panel to generate and run a script.")
 
 st.sidebar.header("Quick actions")
-st.sidebar.markdown("Use the buttons on the main canvas to generate, corrupt, and run scripts. Logs appear on the right.")
 st.sidebar.markdown("Notes:")
 st.sidebar.markdown("- Auditor blocks scripts containing obvious dangerous patterns or syntax errors.")
-st.sidebar.markdown("- Execution enforces a per-attempt 30s (configurable) timeout and a configurable retry limit.")
-            
+st.sidebar.markdown("- Execution enforces a per-attempt 30s timeout and a configurable retry limit.")
+    
